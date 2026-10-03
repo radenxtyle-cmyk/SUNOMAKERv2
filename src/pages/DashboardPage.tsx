@@ -39,7 +39,7 @@ export const DashboardPage: React.FC<DashboardProps> = ({
   const [pendingGens, setPendingGens] = useState<Generation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const userCredits = user?.credits ?? 20;
+  const userCredits = user?.credits ?? 0;
 
   useEffect(() => {
     loadDashboardData();

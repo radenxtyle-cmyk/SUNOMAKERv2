@@ -82,8 +82,8 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     const now = new Date().toISOString();
 
     await db.execute({
-      sql: `INSERT INTO users (id, name, email, passwordHash, role, status, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, 'USER', 'ACTIVE', ?, ?)`,
+      sql: `INSERT INTO users (id, name, email, passwordHash, role, status, credits, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, 'USER', 'ACTIVE', 0, ?, ?)`,
       args: [userId, name?.trim() || 'Music Producer', cleanEmail, passwordHash, now, now],
     });
 
@@ -110,7 +110,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
         email: cleanEmail,
         role: 'USER',
         status: 'ACTIVE',
-        credits: 20,
+        credits: 0,
       },
       kieConnection: kieConn,
     });
@@ -176,7 +176,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
         email: String(user.email),
         role: String(user.role),
         status: String(user.status),
-        credits: Number(user.credits ?? 20),
+        credits: Number(user.credits ?? 0),
       },
       kieConnection,
     });
@@ -222,7 +222,7 @@ authRouter.get('/me', async (req: Request, res: Response) => {
         email: String(u.email),
         role: String(u.role) as 'ADMIN' | 'USER',
         status: String(u.status) as 'ACTIVE' | 'SUSPENDED',
-        credits: Number(u.credits ?? 20),
+        credits: Number(u.credits ?? 0),
       };
 
       token = crypto.randomBytes(32).toString('hex');
@@ -262,28 +262,52 @@ authRouter.patch('/profile', requireAuth, async (req: Request, res: Response) =>
     const { name, newPassword } = req.body;
     const now = new Date().toISOString();
 
-    if (name) {
+    if (newPassword && typeof newPassword === 'string' && newPassword.trim().length < 6) {
+      return res.status(400).json({ error: 'Password baru minimal harus terdiri dari 6 karakter.' });
+    }
+
+    const targetId = req.user!.id;
+    let effectiveId = targetId;
+
+    const userCheck = await db.execute({
+      sql: 'SELECT id FROM users WHERE id = ?',
+      args: [targetId],
+    });
+
+    if (userCheck.rows.length === 0 && req.user?.email) {
+      const emailCheck = await db.execute({
+        sql: 'SELECT id FROM users WHERE email = ?',
+        args: [req.user.email],
+      });
+      if (emailCheck.rows.length > 0) {
+        effectiveId = String(emailCheck.rows[0].id);
+      }
+    }
+
+    if (name && typeof name === 'string' && name.trim()) {
       await db.execute({
         sql: 'UPDATE users SET name = ?, updatedAt = ? WHERE id = ?',
-        args: [name.trim(), now, req.user!.id],
+        args: [name.trim(), now, effectiveId],
       });
       req.user!.name = name.trim();
     }
 
-    if (newPassword && typeof newPassword === 'string' && newPassword.length >= 6) {
-      const hash = await bcrypt.hash(newPassword, 10);
+    if (newPassword && typeof newPassword === 'string' && newPassword.trim().length >= 6) {
+      const hash = await bcrypt.hash(newPassword.trim(), 10);
       await db.execute({
         sql: 'UPDATE users SET passwordHash = ?, updatedAt = ? WHERE id = ?',
-        args: [hash, now, req.user!.id],
+        args: [hash, now, effectiveId],
       });
     }
 
     return res.json({
       success: true,
+      message: 'Profil dan kata sandi berhasil diperbarui.',
       user: req.user,
     });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to update profile.' });
+  } catch (err: any) {
+    console.error('Update profile error:', err);
+    return res.status(500).json({ error: err.message || 'Gagal memperbarui profil.' });
   }
 });
 

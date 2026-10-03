@@ -34,7 +34,7 @@ musicRouter.post('/generate', generateRateLimiter, async (req: Request, res: Res
     }
     const userRecord = userRes.rows[0];
     const userRole = String(userRecord.role || 'USER');
-    const userCredits = Number(userRecord.credits ?? 20);
+    const userCredits = Number(userRecord.credits ?? 0);
 
     const GENERATION_COST = 10;
     if (userCredits < GENERATION_COST && userRole !== 'ADMIN') {
@@ -614,7 +614,7 @@ musicRouter.post('/extend', requireAuth, async (req: Request, res: Response) => 
 
     const userRes = await db.execute({ sql: 'SELECT role, credits FROM users WHERE id = ?', args: [userId] });
     const userRole = String(userRes.rows[0]?.role || 'USER');
-    const userCredits = Number(userRes.rows[0]?.credits ?? 20);
+    const userCredits = Number(userRes.rows[0]?.credits ?? 0);
 
     const EXTEND_COST = 5;
     if (userCredits < EXTEND_COST && userRole !== 'ADMIN') {

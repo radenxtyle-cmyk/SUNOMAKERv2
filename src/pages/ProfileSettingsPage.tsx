@@ -4,24 +4,30 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 
 export const ProfileSettingsPage: React.FC<{ setCurrentTab: (tab: string) => void }> = ({ setCurrentTab }) => {
-  const { user, kieConnection, deleteAccount } = useAuth();
+  const { user, kieConnection, deleteAccount, updateProfile } = useAuth();
 
   const [name, setName] = useState(user?.name || '');
   const [newPassword, setNewPassword] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setStatus(null);
+
+    if (newPassword && newPassword.trim().length < 6) {
+      setStatus({ type: 'error', text: 'Password baru minimal harus terdiri dari 6 karakter.' });
+      return;
+    }
+
     setIsSaving(true);
-    setMessage(null);
     try {
-      await api.updateProfile(name, newPassword || undefined);
-      setMessage('Profile updated successfully.');
+      const res = await updateProfile(name, newPassword.trim() || undefined);
+      setStatus({ type: 'success', text: res.message || 'Profil dan password berhasil diperbarui.' });
       setNewPassword('');
-    } catch {
-      setMessage('Failed to update profile.');
+    } catch (err: any) {
+      setStatus({ type: 'error', text: err.message || 'Gagal memperbarui profil.' });
     } finally {
       setIsSaving(false);
     }
@@ -82,8 +88,19 @@ export const ProfileSettingsPage: React.FC<{ setCurrentTab: (tab: string) => voi
             />
           </div>
 
-          {message && (
-            <p className="text-xs text-emerald-400">{message}</p>
+          {status && (
+            <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+              status.type === 'success' 
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+            }`}>
+              {status.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+              )}
+              <span>{status.text}</span>
+            </div>
           )}
 
           <div className="pt-2 flex justify-end">
@@ -106,7 +123,7 @@ export const ProfileSettingsPage: React.FC<{ setCurrentTab: (tab: string) => voi
             <span>Studio Credit Balance</span>
           </h4>
           <p className="text-xs text-zinc-400 mt-1">
-            Current Quota: <strong className="text-amber-300 font-extrabold">{user?.credits ?? 20} Credits</strong> (Standard generation: 10 credits / song)
+            Current Quota: <strong className="text-amber-300 font-extrabold">{user?.credits ?? 0} Credits</strong> (Standard generation: 10 credits / song)
           </p>
         </div>
         <button

@@ -826,7 +826,7 @@ export const AdminPage: React.FC = () => {
                           <div className="flex items-center gap-1.5">
                             <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 font-extrabold flex items-center gap-1">
                               <Coins className="w-3.5 h-3.5 text-amber-400" />
-                              {u.credits ?? 20} Credits
+                              {u.credits ?? 0} Credits
                             </span>
                           </div>
                         </td>
@@ -1177,7 +1177,7 @@ export const AdminPage: React.FC = () => {
                 <span className="text-xs text-zinc-400">Current Balance</span>
                 <span className="text-sm font-extrabold text-amber-400 flex items-center gap-1">
                   <Coins className="w-3.5 h-3.5" />
-                  {creditModalUser.credits ?? 20} Credits
+                  {creditModalUser.credits ?? 0} Credits
                 </span>
               </div>
 
@@ -1384,7 +1384,7 @@ export const AdminPage: React.FC = () => {
               <div className="text-sm font-bold text-white">{userToDelete.name}</div>
               <div className="text-xs font-mono text-zinc-400">{userToDelete.email}</div>
               <div className="text-[11px] text-amber-400 pt-1">
-                🪙 Saldo Kredit: {userToDelete.credits ?? 20} Credits • Generations: {userToDelete.generationCount}
+                🪙 Saldo Kredit: {userToDelete.credits ?? 0} Credits • Generations: {userToDelete.generationCount}
               </div>
             </div>
 

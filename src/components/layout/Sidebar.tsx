@@ -26,7 +26,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, openConnectModal }) => {
   const { user, logout, switchDemo } = useAuth();
 
-  const userCredits = user?.credits ?? 20;
+  const userCredits = user?.credits ?? 0;
   const isAdmin = user?.role === 'ADMIN';
 
   const navItems = [
@@ -80,7 +80,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, ope
             </div>
             <div>
               <p className="text-[10px] text-zinc-400">Available Balance</p>
-              <p className="text-sm font-extrabold text-amber-300">{userCredits} Credits</p>
+              <p className="text-sm font-extrabold text-amber-300">
+                {isAdmin ? 'Unlimited (Admin)' : `${userCredits} Credits`}
+              </p>
             </div>
           </div>
         </div>

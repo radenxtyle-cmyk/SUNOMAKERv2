@@ -30,7 +30,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   const { user, kieConnection } = useAuth();
   const current = TAB_TITLES[currentTab] || { title: 'SUNOMAKER', subtitle: 'AI Music Production Studio' };
 
-  const userCredits = user?.credits ?? 20;
+  const userCredits = user?.credits ?? 0;
   const isAdmin = user?.role === 'ADMIN';
 
   return (
@@ -57,8 +57,17 @@ export const Topbar: React.FC<TopbarProps> = ({
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/90 border border-amber-500/30 text-xs shadow-inner">
           <Coins className="w-4 h-4 text-amber-400" />
           <div className="flex items-baseline gap-1">
-            <span className="font-extrabold text-amber-300 text-sm">{userCredits}</span>
-            <span className="text-[11px] text-zinc-400 font-medium">Credits</span>
+            {isAdmin ? (
+              <>
+                <span className="font-extrabold text-purple-300 text-sm">Unlimited</span>
+                <span className="text-[11px] text-zinc-400 font-medium">Quota</span>
+              </>
+            ) : (
+              <>
+                <span className="font-extrabold text-amber-300 text-sm">{userCredits}</span>
+                <span className="text-[11px] text-zinc-400 font-medium">Credits</span>
+              </>
+            )}
           </div>
           {isAdmin && (
             <span className="ml-1 px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[9px] font-bold uppercase">

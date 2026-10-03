@@ -27,7 +27,7 @@ export async function initDb() {
       passwordHash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'USER',
       status TEXT NOT NULL DEFAULT 'ACTIVE',
-      credits REAL NOT NULL DEFAULT 20,
+      credits REAL NOT NULL DEFAULT 0,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     );
@@ -35,7 +35,7 @@ export async function initDb() {
 
   // Migration helper for existing databases
   try {
-    await db.execute('ALTER TABLE users ADD COLUMN credits REAL NOT NULL DEFAULT 20');
+    await db.execute('ALTER TABLE users ADD COLUMN credits REAL NOT NULL DEFAULT 0');
   } catch {}
 
   await db.execute(`

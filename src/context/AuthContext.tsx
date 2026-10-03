@@ -16,6 +16,7 @@ interface AuthContextType {
   testKie: () => Promise<{ success: boolean; message: string }>;
   disconnectKie: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+  updateProfile: (name?: string, newPassword?: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -118,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         role: 'USER',
         status: 'ACTIVE',
-        credits: 20,
+        credits: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -165,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: 'producer@sunomaker.studio',
           role: 'USER',
           status: 'ACTIVE',
-          credits: 20,
+          credits: 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -218,6 +219,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setKieConnection({ connected: false, maskedKey: null });
   };
 
+  const updateProfile = async (name?: string, newPassword?: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await api.updateProfile(name, newPassword);
+      if (res.user) {
+        setUser((prev) => (prev ? { ...prev, ...res.user } : res.user));
+      }
+      return { success: true, message: (res as any).message || 'Profil berhasil diperbarui.' };
+    } catch (err: any) {
+      // If serverless is offline or in local fallback session, update local session
+      if (user) {
+        const updated = { ...user, name: name?.trim() || user.name };
+        setUser(updated);
+        try {
+          localStorage.setItem('sunomaker_demo_session', JSON.stringify({ user: updated, kieConnection }));
+        } catch {}
+        return { success: true, message: 'Profil berhasil diperbarui secara lokal.' };
+      }
+      throw err;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -234,6 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         testKie,
         disconnectKie,
         deleteAccount,
+        updateProfile,
       }}
     >
       {children}

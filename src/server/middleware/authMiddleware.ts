@@ -34,7 +34,7 @@ export async function attachUser(req: Request, res: Response, next: NextFunction
           email: String(row.email),
           role: String(row.role) as 'ADMIN' | 'USER',
           status: String(row.status) as 'ACTIVE' | 'SUSPENDED',
-          credits: Number(row.credits ?? 20),
+          credits: Number(row.credits ?? 0),
         };
       }
       return next();
@@ -59,7 +59,7 @@ export async function attachUser(req: Request, res: Response, next: NextFunction
           email: String(row.email),
           role: String(row.role) as 'ADMIN' | 'USER',
           status: String(row.status) as 'ACTIVE' | 'SUSPENDED',
-          credits: Number(row.credits ?? 20),
+          credits: Number(row.credits ?? 0),
         };
       }
       return next();
@@ -79,7 +79,7 @@ export async function attachUser(req: Request, res: Response, next: NextFunction
       email: String(row.email),
       role: String(row.role) as 'ADMIN' | 'USER',
       status: String(row.status) as 'ACTIVE' | 'SUSPENDED',
-      credits: Number(row.credits ?? 20),
+      credits: Number(row.credits ?? 0),
     };
     req.sessionToken = token;
   } catch (err) {

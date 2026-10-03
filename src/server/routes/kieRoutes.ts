@@ -82,7 +82,7 @@ kieRouter.post('/connect', connectRateLimiter, async (req: Request, res: Respons
           email: String(row.email),
           role: String(row.role) as any,
           status: String(row.status) as any,
-          credits: Number(row.credits ?? 20),
+          credits: Number(row.credits ?? 0),
         };
         req.user = user;
       }

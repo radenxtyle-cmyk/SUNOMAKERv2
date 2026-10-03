@@ -41,7 +41,7 @@ export const CreateMusicPage: React.FC<CreateMusicPageProps> = ({
   const { user, refreshUser, kieConnection } = useAuth();
   const { playTrack, currentTrack, isPlaying, togglePlay, toggleFavorite, downloadTrack } = useAudioPlayer();
 
-  const userCredits = user?.credits ?? 20;
+  const userCredits = user?.credits ?? 0;
   const isAdmin = user?.role === 'ADMIN';
 
   const [mode, setMode] = useState<'quick' | 'custom'>('quick');

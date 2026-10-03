@@ -76,7 +76,7 @@ adminRouter.get('/users', async (req: Request, res: Response) => {
       email: String(row.email),
       role: String(row.role),
       status: String(row.status),
-      credits: Number(row.credits ?? 20),
+      credits: Number(row.credits ?? 0),
       createdAt: String(row.createdAt),
       updatedAt: String(row.updatedAt),
       kieConnection: {
@@ -117,7 +117,7 @@ adminRouter.post('/users/:id/credits', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const currentCredits = Number(userRes.rows[0]?.credits ?? 20);
+    const currentCredits = Number(userRes.rows[0]?.credits ?? 0);
     let newCredits = currentCredits;
 
     if (action === 'set') {
