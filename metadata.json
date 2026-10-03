@@ -1,0 +1,8 @@
+{
+  "name": "Remix SUNOMAKER",
+  "description": "Your Music Studio. Your Kie.ai API Key. Multi-user AI music generation workspace with Bring Your Own Kie.ai API Key (BYOK) architecture.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
