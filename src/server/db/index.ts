@@ -1,9 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import { createClient as createWebClient, Client } from '@libsql/client/web';
-import { createClient as createNodeClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
+
+const nodeRequire = createRequire(import.meta.url);
 
 // Ensure data directory exists if not serverless
 try {
@@ -15,27 +17,30 @@ try {
 }
 
 function initDbClient(): Client {
+  const url = config.dbUrl;
   const isRemote =
-    config.dbUrl.startsWith('libsql://') ||
-    config.dbUrl.startsWith('https://') ||
-    config.dbUrl.startsWith('http://');
+    url.startsWith('libsql://') ||
+    url.startsWith('https://') ||
+    url.startsWith('http://');
 
   if (isRemote) {
     return createWebClient({
-      url: config.dbUrl,
+      url,
       authToken: config.dbAuthToken,
     });
   }
 
+  // Local SQLite (non-serverless dev)
   try {
-    return createNodeClient({
-      url: config.dbUrl,
+    const { createClient } = nodeRequire('@libsql/client');
+    return createClient({
+      url,
       authToken: config.dbAuthToken,
     });
-  } catch {
-    // If local file fails or in serverless without native bindings, use web client
+  } catch (err) {
+    console.warn('[SUNOMAKER DB] Falling back to web client:', err);
     return createWebClient({
-      url: config.dbUrl.startsWith('file:') ? 'http://127.0.0.1:8080' : config.dbUrl,
+      url: url.startsWith('file:') ? 'http://127.0.0.1:8080' : url,
       authToken: config.dbAuthToken,
     });
   }
