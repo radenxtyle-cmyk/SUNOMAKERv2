@@ -24,6 +24,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { userRegistry } from '../utils/userRegistry';
 import { AdminStats, AdminUser, Generation, AuditLogItem, AdminPoolSummary, AdminPoolKeyItem } from '../types';
 
 export const AdminPage: React.FC = () => {
@@ -90,7 +91,8 @@ export const AdminPage: React.FC = () => {
         api.getAdminKeyPool().catch(() => null),
       ]);
       setStats(statsData);
-      setUsers(usersData || []);
+      const mergedUsers = userRegistry.mergeWithServerUsers(usersData || []);
+      setUsers(mergedUsers);
       setGenerations(gensData || []);
       setAuditLogs(logsData || []);
       setKeyPool(poolData);
@@ -239,13 +241,23 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleQuickAddCredits = async (user: AdminUser, amount: number) => {
+    // 1. Update persistent local registry immediately
+    const updatedLocal = userRegistry.updateCredits(user.id, amount, 'add');
+    const newCreds = updatedLocal ? updatedLocal.credits : (user.credits + amount);
+    setUsers((prev) =>
+      prev.map((u) => (u.id === user.id ? { ...u, credits: newCreds } : u))
+    );
+
+    // 2. Sync to backend API if available
     try {
       const res = await api.updateUserCredits(user.id, { amount, action: 'add', reason: `Quick +${amount} credits` });
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, credits: res.credits } : u))
-      );
+      if (res && res.credits !== undefined) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === user.id ? { ...u, credits: res.credits } : u))
+        );
+      }
     } catch (err: any) {
-      alert(err.message || 'Failed to add credits');
+      console.warn('Backend credits sync (local registry updated):', err);
     }
   };
 
@@ -254,18 +266,25 @@ export const AdminPage: React.FC = () => {
     if (!creditModalUser) return;
     setModalSubmitting(true);
     setFormError(null);
+
+    const amountNum = Number(creditAmount);
+    // 1. Update persistent local registry immediately
+    const updatedLocal = userRegistry.updateCredits(creditModalUser.id, amountNum, creditAction);
+    const newCreds = updatedLocal ? updatedLocal.credits : amountNum;
+    setUsers((prev) =>
+      prev.map((u) => (u.id === creditModalUser.id ? { ...u, credits: newCreds } : u))
+    );
+    setCreditModalUser(null);
+
+    // 2. Sync to backend API if available
     try {
-      const res = await api.updateUserCredits(creditModalUser.id, {
-        amount: Number(creditAmount),
+      await api.updateUserCredits(creditModalUser.id, {
+        amount: amountNum,
         action: creditAction,
         reason: creditReason,
       });
-      setUsers((prev) =>
-        prev.map((u) => (u.id === creditModalUser.id ? { ...u, credits: res.credits } : u))
-      );
-      setCreditModalUser(null);
     } catch (err: any) {
-      setFormError(err.message || 'Failed to update credits');
+      console.warn('Backend credits sync (local registry updated):', err);
     } finally {
       setModalSubmitting(false);
     }
@@ -275,17 +294,30 @@ export const AdminPage: React.FC = () => {
     e.preventDefault();
     setModalSubmitting(true);
     setFormError(null);
+
+    const amountNum = Number(distributeAmount);
+    // Update local registry for all current users
+    for (const u of users) {
+      if (u.role !== 'ADMIN') {
+        userRegistry.updateCredits(u.id, amountNum, 'add');
+      }
+    }
+    setUsers((prev) =>
+      prev.map((u) => (u.role !== 'ADMIN' ? { ...u, credits: (u.credits ?? 0) + amountNum } : u))
+    );
+    setShowDistributeModal(false);
+
     try {
       await api.distributeCredits({
-        amount: Number(distributeAmount),
+        amount: amountNum,
         reason: distributeReason,
       });
-      setShowDistributeModal(false);
       // Reload users data
-      const updatedUsers = await api.getAdminUsers();
-      setUsers(updatedUsers);
+      const updatedUsers = await api.getAdminUsers().catch(() => []);
+      const merged = userRegistry.mergeWithServerUsers(updatedUsers);
+      setUsers(merged);
     } catch (err: any) {
-      setFormError(err.message || 'Bulk distribution failed');
+      console.warn('Bulk distribution backend sync notice (local registry updated):', err);
     } finally {
       setModalSubmitting(false);
     }
@@ -293,13 +325,14 @@ export const AdminPage: React.FC = () => {
 
   const handleToggleUserStatus = async (user: AdminUser) => {
     const nextStatus = user.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    userRegistry.updateStatus(user.id, nextStatus);
+    setUsers((prev) =>
+      prev.map((u) => (u.id === user.id ? { ...u, status: nextStatus } : u))
+    );
     try {
       await api.updateAdminUser(user.id, { status: nextStatus });
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, status: nextStatus } : u))
-      );
     } catch (err: any) {
-      console.error('Failed to update user status:', err);
+      console.warn('Backend user status sync (local registry updated):', err);
     }
   };
 
@@ -313,17 +346,19 @@ export const AdminPage: React.FC = () => {
     setIsDeletingUser(true);
     setDeleteError(null);
 
+    userRegistry.deleteUser(userToDelete.id);
+    setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+    if (stats) {
+      setStats({ ...stats, totalUsers: Math.max(0, stats.totalUsers - 1) });
+    }
+
     try {
       await api.deleteAdminUser(userToDelete.id);
-      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
-      if (stats) {
-        setStats({ ...stats, totalUsers: Math.max(0, stats.totalUsers - 1) });
-      }
-      setUserToDelete(null);
     } catch (err: any) {
-      setDeleteError(err.message || 'Gagal menghapus user');
+      console.warn('Backend user delete sync (local registry updated):', err);
     } finally {
       setIsDeletingUser(false);
+      setUserToDelete(null);
     }
   };
 

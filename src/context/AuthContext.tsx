@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, KieConnectionState } from '../types';
 import { api } from '../services/api';
+import { userRegistry } from '../utils/userRegistry';
 
 interface AuthContextType {
   user: User | null;
@@ -90,9 +91,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await api.login(email, password);
       setUser(data.user);
       setKieConnection(data.kieConnection);
+      userRegistry.saveUser(data.user);
       localStorage.setItem('sunomaker_demo_session', JSON.stringify({ user: data.user, kieConnection: data.kieConnection }));
     } catch (err: any) {
-      // If server is offline on static deployment, fallback to pre-configured accounts
+      // 1. Check local persistent user registry for registered users
+      const stored = userRegistry.findByEmail(email);
+      if (stored) {
+        if (stored.password && stored.password !== password) {
+          throw new Error('Kata sandi yang Anda masukkan salah.');
+        }
+        setUser(stored);
+        const localKie: KieConnectionState = { connected: false, maskedKey: null };
+        setKieConnection(localKie);
+        localStorage.setItem('sunomaker_demo_session', JSON.stringify({ user: stored, kieConnection: localKie }));
+        return;
+      }
+
+      // 2. Fallback to pre-configured accounts
       const lower = email.toLowerCase();
       if (lower.includes('admin') || lower === 'admin@sunomaker.studio') {
         await switchDemo('ADMIN');
@@ -110,11 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await api.register(name, email, password);
       setUser(data.user);
       setKieConnection(data.kieConnection);
+      userRegistry.saveUser(data.user, password);
       localStorage.setItem('sunomaker_demo_session', JSON.stringify({ user: data.user, kieConnection: data.kieConnection }));
     } catch (err: any) {
-      // If server is offline on static host, create local session
+      // If server is offline on static host, create local persistent session
       const localUser: User = {
-        id: 'user_local_' + Math.random().toString(36).substring(2, 9),
+        id: 'usr_' + Math.random().toString(36).substring(2, 10),
         name: name || 'Producer',
         email,
         role: 'USER',
@@ -124,6 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatedAt: new Date().toISOString(),
       };
       const localKie: KieConnectionState = { connected: false, maskedKey: null };
+      userRegistry.saveUser(localUser, password);
       setUser(localUser);
       setKieConnection(localKie);
       localStorage.setItem('sunomaker_demo_session', JSON.stringify({ user: localUser, kieConnection: localKie }));
@@ -214,7 +231,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteAccount = async () => {
-    await api.deleteAccount();
+    try {
+      await api.deleteAccount();
+    } catch {}
+    if (user) {
+      userRegistry.deleteUser(user.id);
+    }
     setUser(null);
     setKieConnection({ connected: false, maskedKey: null });
   };
@@ -224,6 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.updateProfile(name, newPassword);
       if (res.user) {
         setUser((prev) => (prev ? { ...prev, ...res.user } : res.user));
+        userRegistry.saveUser(res.user, newPassword);
       }
       return { success: true, message: (res as any).message || 'Profil berhasil diperbarui.' };
     } catch (err: any) {
@@ -231,6 +254,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user) {
         const updated = { ...user, name: name?.trim() || user.name };
         setUser(updated);
+        userRegistry.saveUser(updated, newPassword);
         try {
           localStorage.setItem('sunomaker_demo_session', JSON.stringify({ user: updated, kieConnection }));
         } catch {}
