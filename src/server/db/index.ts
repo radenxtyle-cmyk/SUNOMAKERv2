@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createClient as createWebClient, Client } from '@libsql/client/web';
+import { createClient as createNodeClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
 
@@ -27,13 +28,12 @@ function initDbClient(): Client {
   }
 
   try {
-    const { createClient } = require('@libsql/client');
-    return createClient({
+    return createNodeClient({
       url: config.dbUrl,
       authToken: config.dbAuthToken,
     });
   } catch {
-    // If local file fails or in serverless without native bindings, use web client or in-memory
+    // If local file fails or in serverless without native bindings, use web client
     return createWebClient({
       url: config.dbUrl.startsWith('file:') ? 'http://127.0.0.1:8080' : config.dbUrl,
       authToken: config.dbAuthToken,
