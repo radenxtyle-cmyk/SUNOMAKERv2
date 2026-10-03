@@ -1,11 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { createRequire } from 'module';
-import { createClient as createWebClient, Client } from '@libsql/client/web';
+import { createClient, Client } from '@libsql/client/web';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
-
-const nodeRequire = createRequire(import.meta.url);
 
 // Ensure data directory exists if not serverless
 try {
@@ -18,32 +15,11 @@ try {
 
 function initDbClient(): Client {
   const url = config.dbUrl;
-  const isRemote =
-    url.startsWith('libsql://') ||
-    url.startsWith('https://') ||
-    url.startsWith('http://');
 
-  if (isRemote) {
-    return createWebClient({
-      url,
-      authToken: config.dbAuthToken,
-    });
-  }
-
-  // Local SQLite (non-serverless dev)
-  try {
-    const { createClient } = nodeRequire('@libsql/client');
-    return createClient({
-      url,
-      authToken: config.dbAuthToken,
-    });
-  } catch (err) {
-    console.warn('[SUNOMAKER DB] Falling back to web client:', err);
-    return createWebClient({
-      url: url.startsWith('file:') ? 'http://127.0.0.1:8080' : url,
-      authToken: config.dbAuthToken,
-    });
-  }
+  return createClient({
+    url: url.startsWith('file:') ? 'http://127.0.0.1:8080' : url,
+    authToken: config.dbAuthToken,
+  });
 }
 
 export const db: Client = initDbClient();
