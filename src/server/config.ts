@@ -19,7 +19,19 @@ export const config = {
   port: Number(process.env.PORT) || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
   isDev: (process.env.NODE_ENV || 'development') === 'development',
-  dbUrl: process.env.DATABASE_URL || defaultDbUrl,
+  dbUrl:
+    process.env.TURSO_DATABASE_URL ||
+    process.env.TURSO_URL ||
+    process.env.DATABASE_URL ||
+    process.env.STORAGE_URL ||
+    process.env.STORAGE_DATABASE_URL ||
+    defaultDbUrl,
+  dbAuthToken:
+    process.env.TURSO_AUTH_TOKEN ||
+    process.env.DATABASE_AUTH_TOKEN ||
+    process.env.STORAGE_AUTH_TOKEN ||
+    process.env.TURSO_TOKEN ||
+    process.env.DATABASE_TOKEN,
   sessionSecret: process.env.SESSION_SECRET || 'sunomaker-secure-session-secret-key-32chars',
   credentialEncryptionKey: encryptionKey,
   appUrl: process.env.APP_URL || 'http://localhost:3000',

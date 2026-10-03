@@ -15,6 +15,7 @@ try {
 
 export const db: Client = createClient({
   url: config.dbUrl,
+  authToken: config.dbAuthToken,
 });
 
 export async function initDb() {
