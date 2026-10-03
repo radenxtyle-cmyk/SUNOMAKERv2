@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { userRegistry } from '../utils/userRegistry';
+import { adminPoolStorage } from '../utils/adminPoolStorage';
 import { AdminStats, AdminUser, Generation, AuditLogItem, AdminPoolSummary, AdminPoolKeyItem } from '../types';
 
 export const AdminPage: React.FC = () => {
@@ -95,7 +96,8 @@ export const AdminPage: React.FC = () => {
       setUsers(mergedUsers);
       setGenerations(gensData || []);
       setAuditLogs(logsData || []);
-      setKeyPool(poolData);
+      const poolMerged = adminPoolStorage.getMergedSummary(poolData);
+      setKeyPool(poolMerged);
 
       // Trigger automatic live balance verification against Kie.ai on initial load
       if (poolData && poolData.keys && poolData.keys.length > 0) {
@@ -125,20 +127,18 @@ export const AdminPage: React.FC = () => {
   const handleTestKey = async (id: string) => {
     setTestingKeyId(id);
     try {
-      const updated = await api.testAdminPoolKey(id);
-      setKeyPool((prev) => {
-        if (!prev) return null;
-        const newKeys = prev.keys.map((k) => (k.id === id ? updated : k));
-        const totalCredits = newKeys
-          .filter((k) => k.status === 'ACTIVE')
-          .reduce((sum, k) => sum + (k.balance > 0 ? k.balance : 0), 0);
-        return {
-          ...prev,
-          keys: newKeys,
-          activeKeys: newKeys.filter((k) => k.status === 'ACTIVE').length,
-          totalCreditsAccumulated: Math.round(totalCredits * 100) / 100,
-        };
-      });
+      let updated: AdminPoolKeyItem | null = null;
+      try {
+        updated = await api.testAdminPoolKey(id);
+      } catch {
+        updated = await adminPoolStorage.testKey(id);
+      }
+
+      if (updated) {
+        adminPoolStorage.saveKeyItem(updated);
+        const merged = adminPoolStorage.getMergedSummary(keyPool);
+        setKeyPool(merged);
+      }
     } catch (err: any) {
       alert(err.message || 'Key test failed');
     } finally {
@@ -147,57 +147,67 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleToggleKeyStatus = async (keyItem: AdminPoolKeyItem) => {
+    const updated = adminPoolStorage.toggleStatus(keyItem.id);
     const nextStatus = keyItem.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED';
+    if (updated) {
+      const merged = adminPoolStorage.getMergedSummary(keyPool);
+      setKeyPool(merged);
+    }
     try {
       await api.updateAdminPoolKey(keyItem.id, { status: nextStatus });
-      setKeyPool((prev) => {
-        if (!prev) return null;
-        const newKeys = prev.keys.map((k) => (k.id === keyItem.id ? { ...k, status: nextStatus as any } : k));
-        return {
-          ...prev,
-          keys: newKeys,
-          activeKeys: newKeys.filter((k) => k.status === 'ACTIVE').length,
-        };
-      });
-    } catch {
-      alert('Failed to update status');
+    } catch (err) {
+      console.warn('Backend key status sync warning (local storage updated):', err);
     }
   };
 
   const handleDeleteKey = async (id: string, label: string) => {
-    if (!confirm(`Remove "${label}" from Admin Key Pool?`)) return;
+    if (!confirm(`Hapus "${label}" dari Admin Key Pool?`)) return;
+    adminPoolStorage.deleteKey(id);
+    setKeyPool((prev) => {
+      if (!prev) return null;
+      const newKeys = prev.keys.filter((k) => k.id !== id);
+      return adminPoolStorage.getMergedSummary({ ...prev, keys: newKeys });
+    });
     try {
       await api.deleteAdminPoolKey(id);
-      setKeyPool((prev) => {
-        if (!prev) return null;
-        const newKeys = prev.keys.filter((k) => k.id !== id);
-        return {
-          ...prev,
-          keys: newKeys,
-          totalKeys: newKeys.length,
-          activeKeys: newKeys.filter((k) => k.status === 'ACTIVE').length,
-        };
-      });
-    } catch {
-      alert('Failed to delete key');
+    } catch (err) {
+      console.warn('Backend delete key sync warning (local storage updated):', err);
     }
   };
 
   const handleAddSingleKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!singleKey.trim()) {
-      setFormError('Please enter a valid Kie.ai API key');
+      setFormError('Silakan masukkan API key Kie.ai yang valid.');
       return;
     }
 
     setModalSubmitting(true);
     setFormError(null);
     try {
-      const added = await api.addAdminPoolKey({
-        label: singleLabel.trim(),
-        apiKey: singleKey.trim(),
-        priority: singlePriority,
-      });
+      let added: AdminPoolKeyItem | null = null;
+
+      // 1. Try backend API first
+      try {
+        added = await api.addAdminPoolKey({
+          label: singleLabel.trim(),
+          apiKey: singleKey.trim(),
+          priority: singlePriority,
+        });
+      } catch (backendErr: any) {
+        console.warn('Backend API key add unavailable, activating local storage pool:', backendErr);
+      }
+
+      // 2. If backend failed or was unreachable, save to resilient local storage
+      if (!added) {
+        added = await adminPoolStorage.addKey(
+          singleLabel.trim(),
+          singleKey.trim(),
+          singlePriority
+        );
+      } else {
+        adminPoolStorage.saveKeyItem(added, singleKey.trim());
+      }
 
       setShowAddModal(false);
       setSingleKey('');
@@ -205,10 +215,10 @@ export const AdminPage: React.FC = () => {
       setSinglePriority(1);
 
       // Refresh pool summary
-      const updatedSummary = await api.getAdminKeyPool();
+      const updatedSummary = adminPoolStorage.getMergedSummary(keyPool);
       setKeyPool(updatedSummary);
     } catch (err: any) {
-      setFormError(err.message || 'Failed to add key to pool');
+      setFormError(err.message || 'Gagal menambahkan API key ke pool.');
     } finally {
       setModalSubmitting(false);
     }
@@ -217,7 +227,7 @@ export const AdminPage: React.FC = () => {
   const handleAddBulkKeys = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkText.trim()) {
-      setFormError('Please enter at least one key');
+      setFormError('Silakan masukkan setidaknya satu API key.');
       return;
     }
 
@@ -226,15 +236,25 @@ export const AdminPage: React.FC = () => {
     setBulkResult(null);
 
     try {
-      const res = await api.addAdminPoolBulkKeys(bulkText);
+      let res: any = null;
+      try {
+        res = await api.addAdminPoolBulkKeys(bulkText);
+      } catch (backendErr) {
+        console.warn('Backend bulk import unavailable, using local storage pool:', backendErr);
+      }
+
+      if (!res || !res.added) {
+        res = await adminPoolStorage.addBulkKeys(bulkText);
+      }
       setBulkResult(res);
+
       if (res.added > 0) {
         setBulkText('');
-        const updatedSummary = await api.getAdminKeyPool();
+        const updatedSummary = adminPoolStorage.getMergedSummary(keyPool);
         setKeyPool(updatedSummary);
       }
     } catch (err: any) {
-      setFormError(err.message || 'Bulk import failed');
+      setFormError(err.message || 'Bulk import gagal.');
     } finally {
       setModalSubmitting(false);
     }
