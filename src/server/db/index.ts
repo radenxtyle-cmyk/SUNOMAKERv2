@@ -1,22 +1,47 @@
 import fs from 'fs';
 import path from 'path';
-import { createClient, Client } from '@libsql/client';
+import { createClient as createWebClient, Client } from '@libsql/client/web';
 import bcrypt from 'bcryptjs';
 import { config } from '../config';
 
-// Ensure data directory exists
+// Ensure data directory exists if not serverless
 try {
-  if (!fs.existsSync(config.dataDir)) {
+  if (!config.isVercel && !fs.existsSync(config.dataDir)) {
     fs.mkdirSync(config.dataDir, { recursive: true });
   }
 } catch (err) {
-  console.warn('[SUNOMAKER DB] Could not create dataDir (expected in serverless/read-only):', err);
+  // Ignored in serverless
 }
 
-export const db: Client = createClient({
-  url: config.dbUrl,
-  authToken: config.dbAuthToken,
-});
+function initDbClient(): Client {
+  const isRemote =
+    config.dbUrl.startsWith('libsql://') ||
+    config.dbUrl.startsWith('https://') ||
+    config.dbUrl.startsWith('http://');
+
+  if (isRemote) {
+    return createWebClient({
+      url: config.dbUrl,
+      authToken: config.dbAuthToken,
+    });
+  }
+
+  try {
+    const { createClient } = require('@libsql/client');
+    return createClient({
+      url: config.dbUrl,
+      authToken: config.dbAuthToken,
+    });
+  } catch {
+    // If local file fails or in serverless without native bindings, use web client or in-memory
+    return createWebClient({
+      url: config.dbUrl.startsWith('file:') ? 'http://127.0.0.1:8080' : config.dbUrl,
+      authToken: config.dbAuthToken,
+    });
+  }
+}
+
+export const db: Client = initDbClient();
 
 export async function initDb() {
   // Create tables
